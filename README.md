@@ -1,159 +1,85 @@
-# Talent Hub API
+# Nexus Workforce API v3
 
-Servicio REST para la gestión de miembros de un equipo, construido con **FastAPI** y **SQLAlchemy**.
+Microservicio para administración de personal organizacional, diseñado con arquitectura en capas y patrón de gestor de dominio.
 
----
+## Qué es esto
 
-## Descripción general
+Nexus Workforce expone una API HTTP que permite realizar operaciones CRUD completas sobre registros de personal: altas, consultas con filtros, reemplazos totales, ajustes parciales y bajas. La información se almacena en SQLite a través de SQLAlchemy ORM.
 
-Talent Hub expone una interfaz HTTP para administrar el ciclo de vida de los miembros de una organización: altas, consultas, filtros, modificaciones y bajas. La información se persiste en una base de datos SQLite mediante SQLAlchemy ORM.
+## Tecnologías
 
----
+- Python 3.11+
+- FastAPI con lifespan management
+- SQLAlchemy (síncrono, SQLite)
+- Pydantic v2 + pydantic-settings
+- Middleware personalizado de timing
 
-## Stack tecnológico
-
-| Componente       | Versión     |
-|------------------|-------------|
-| Python           | 3.11+       |
-| FastAPI          | latest      |
-| Pydantic         | v2          |
-| SQLAlchemy       | latest      |
-| Uvicorn          | latest      |
-| email-validator  | latest      |
-
----
-
-## Estructura del proyecto
-
-```
-src/
-├── app.py                  # Punto de entrada de la aplicación
-├── endpoints/
-│   └── member_endpoints.py # Definición de rutas HTTP
-├── logic/
-│   └── member_logic.py     # Reglas de negocio y operaciones CRUD
-├── dto/
-│   └── member_dto.py       # Modelos de transferencia de datos
-├── entities/
-│   ├── __init__.py
-│   └── member_entity.py    # Modelo ORM (tabla members)
-├── persistence/
-│   └── engine.py           # Configuración de la base de datos
-├── injectors/
-│   ├── session_injector.py # Inyección de sesiones DB
-│   └── header_injector.py  # Inyección de cabeceras HTTP
-└── storage/
-    └── memory_store.py     # Almacenamiento temporal en memoria
-```
-
----
-
-## Endpoints disponibles
-
-### Miembros (`/members`)
-
-| Método   | Ruta                    | Descripción                       | Código de éxito |
-|----------|-------------------------|-----------------------------------|-----------------|
-| `GET`    | `/members`              | Listar todos los miembros         | 200             |
-| `GET`    | `/members/{id}`         | Buscar miembro por ID             | 200             |
-| `POST`   | `/members`              | Registrar nuevo miembro           | 201             |
-| `PUT`    | `/members/{id}`         | Actualización completa            | 200             |
-| `PATCH`  | `/members/{id}`         | Actualización parcial             | 200             |
-| `DELETE` | `/members/{id}`         | Eliminar miembro                  | 204             |
-
-### Parámetros de filtrado (GET `/members`)
-
-| Parámetro      | Tipo     | Valores permitidos           | Descripción              |
-|----------------|----------|------------------------------|--------------------------|
-| `position`     | string   | `manager`, `staff`, `intern` | Filtrar por posición     |
-| `is_available` | boolean  | `true`, `false`              | Filtrar por disponibilidad |
-| `sort_by`      | string   | `full_name`, `joined_on`     | Campo de ordenamiento    |
-
-### Códigos de error
-
-| Código | Significado                     |
-|--------|---------------------------------|
-| 400    | Correo duplicado o body vacío   |
-| 404    | Miembro no encontrado           |
-| 422    | Error de validación Pydantic    |
-
----
-
-## Inicio rápido
-
-### 1. Instalar dependencias
+## Cómo arrancar
 
 ```bash
 pip install -r requirements.txt
+uvicorn core.app:application --reload
 ```
 
-### 2. Ejecutar el servidor
+Documentación interactiva disponible en `/docs` (Swagger) y `/redoc`.
 
-```bash
-uvicorn src.app:application --reload
+## Arquitectura
+
+```
+core/
+├── config.py        # Configuración centralizada con pydantic-settings
+├── app.py           # Factory de la app, lifespan, middlewares, handlers
+├── database.py      # Engine SQLAlchemy y factoría de sesiones
+├── exceptions.py    # Excepciones de dominio con códigos propios
+└── middleware.py     # Middleware de medición de tiempo de respuesta
+
+models/
+└── staff.py         # Modelo ORM (tabla staff)
+
+schemas/
+└── staff.py         # DTOs de entrada/salida con validaciones
+
+crud/
+└── staff.py         # Clase GestorPersonal — toda la lógica de negocio
+
+api/v1/
+├── router.py        # Router aggregador de la versión 1
+└── staff.py         # Endpoints REST del recurso personal
 ```
 
-### 3. Acceder a la documentación
+## Endpoints
 
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+Método | Ruta | Descripción | Status
+-------|------|-------------|-------
+GET | `/api/v1/personal` | Listar plantilla (filtros: rol, activo) | 200
+GET | `/api/v1/personal/{uid}` | Buscar por identificador | 200
+POST | `/api/v1/personal` | Alta nuevo registro | 201
+PUT | `/api/v1/personal/{uid}` | Reemplazo completo | 200
+PATCH | `/api/v1/personal/{uid}` | Ajuste parcial | 200
+DELETE | `/api/v1/personal/{uid}` | Baja definitiva | 204
 
----
+## Códigos de error
 
-## Validaciones implementadas
+Código HTTP | Significado
+-----------|------------
+409 | Registro duplicado (correo ya registrado)
+404 | Registro no encontrado
+422 | Cuerpo de petición vacío o error de validación
 
-| Campo            | Regla                                         |
-|------------------|-----------------------------------------------|
-| `full_name`      | Mínimo 3 caracteres                           |
-| `contact_email`  | Formato de correo válido (email-validator)     |
-| `position`       | Solo valores del enum: manager, staff, intern  |
-| `is_available`   | Booleano (default: `true`)                     |
+## Modelo de datos
 
----
+Campo | Tipo | Descripción
+------|------|-----------
+uid | int | Identificador autoincremental
+nombre_completo | str | Nombre completo (mín. 2 caracteres)
+correo | str | Correo electrónico único
+rol | enum | coordinador / operativo / practicante
+activo | bool | Estado de alta (default: true)
+fecha_alta | datetime | Fecha de incorporación
+notas | str | Observaciones opcionales
 
-## Ejemplos de uso
+## Endpoints de sistema
 
-### Registrar un miembro
-
-```bash
-curl -X POST http://localhost:8000/members \
-  -H "Content-Type: application/json" \
-  -d '{
-    "full_name": "María García",
-    "contact_email": "maria@talenthub.io",
-    "position": "manager",
-    "is_available": true
-  }'
-```
-
-### Listar miembros disponibles
-
-```bash
-curl http://localhost:8000/members?is_available=true
-```
-
-### Filtrar por posición
-
-```bash
-curl http://localhost:8000/members?position=staff
-```
-
-### Actualizar parcialmente
-
-```bash
-curl -X PATCH http://localhost:8000/members/1 \
-  -H "Content-Type: application/json" \
-  -d '{"position": "manager"}'
-```
-
-### Eliminar un miembro
-
-```bash
-curl -X DELETE http://localhost:8000/members/1
-```
-
----
-
-## Licencia
-
-MIT License
+Ruta | Descripción
+-----|------------
+GET `/ping` | Healthcheck — devuelve `{"reply": "pong"}`

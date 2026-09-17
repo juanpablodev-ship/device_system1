@@ -1,6 +1,5 @@
 fastapi
-uvicorn[standard]
-pydantic
-pydantic-settings
-email-validator
+uvicorn
+pydantic[email]
 sqlalchemy
+alembic

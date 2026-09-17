@@ -1,85 +1,118 @@
-# Nexus Workforce API v3
+# device_systems v2.0
 
-Microservicio para administración de personal organizacional, diseñado con arquitectura en capas y patrón de gestor de dominio.
+API REST para la gestion de usuarios, dispositivos y prestamos del sistema device_systems, construida con FastAPI, SQLAlchemy y Alembic.
 
-## Qué es esto
-
-Nexus Workforce expone una API HTTP que permite realizar operaciones CRUD completas sobre registros de personal: altas, consultas con filtros, reemplazos totales, ajustes parciales y bajas. La información se almacena en SQLite a través de SQLAlchemy ORM.
-
-## Tecnologías
-
-- Python 3.11+
-- FastAPI con lifespan management
-- SQLAlchemy (síncrono, SQLite)
-- Pydantic v2 + pydantic-settings
-- Middleware personalizado de timing
-
-## Cómo arrancar
+## Instalacion
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-uvicorn core.app:application --reload
 ```
 
-Documentación interactiva disponible en `/docs` (Swagger) y `/redoc`.
+## Ejecucion del servidor
 
-## Arquitectura
+```bash
+uvicorn app.main:app --reload
+```
+
+Servidor: `http://127.0.0.1:8000`
+Swagger: `http://127.0.0.1:8000/docs`
+ReDoc: `http://127.0.0.1:8000/redoc`
+
+## Migraciones con Alembic
+
+```bash
+alembic revision --autogenerate -m "descripcion"
+alembic upgrade head
+alembic history
+```
+
+## Estructura
 
 ```
-core/
-├── config.py        # Configuración centralizada con pydantic-settings
-├── app.py           # Factory de la app, lifespan, middlewares, handlers
-├── database.py      # Engine SQLAlchemy y factoría de sesiones
-├── exceptions.py    # Excepciones de dominio con códigos propios
-└── middleware.py     # Middleware de medición de tiempo de respuesta
-
-models/
-└── staff.py         # Modelo ORM (tabla staff)
-
-schemas/
-└── staff.py         # DTOs de entrada/salida con validaciones
-
-crud/
-└── staff.py         # Clase GestorPersonal — toda la lógica de negocio
-
-api/v1/
-├── router.py        # Router aggregador de la versión 1
-└── staff.py         # Endpoints REST del recurso personal
+device_systems/
+├── app/
+│   ├── main.py
+│   ├── database/
+│   │   └── connection.py
+│   ├── models/
+│   │   ├── user_model.py
+│   │   ├── device_model.py
+│   │   └── loan_model.py
+│   ├── schemas/
+│   │   ├── user_schema.py
+│   │   ├── device_schema.py
+│   │   └── loan_schema.py
+│   ├── routes/
+│   │   ├── user_routes.py
+│   │   ├── device_routes.py
+│   │   └── loan_routes.py
+│   ├── services/
+│   │   ├── user_service.py
+│   │   ├── device_service.py
+│   │   └── loan_service.py
+│   └── dependencies/
+│       └── database_dependency.py
+├── alembic/
+│   └── versions/
+├── alembic.ini
+├── requirements.txt
+└── README.md
 ```
 
 ## Endpoints
 
-Método | Ruta | Descripción | Status
--------|------|-------------|-------
-GET | `/api/v1/personal` | Listar plantilla (filtros: rol, activo) | 200
-GET | `/api/v1/personal/{uid}` | Buscar por identificador | 200
-POST | `/api/v1/personal` | Alta nuevo registro | 201
-PUT | `/api/v1/personal/{uid}` | Reemplazo completo | 200
-PATCH | `/api/v1/personal/{uid}` | Ajuste parcial | 200
-DELETE | `/api/v1/personal/{uid}` | Baja definitiva | 204
+### Users
 
-## Códigos de error
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| GET | `/users/` | Listar usuarios |
+| GET | `/users/{id}` | Obtener usuario |
+| POST | `/users/` | Crear usuario |
+| PUT | `/users/{id}` | Actualizar usuario |
+| PATCH | `/users/{id}` | Actualizar parcial |
+| DELETE | `/users/{id}` | Eliminar usuario |
 
-Código HTTP | Significado
------------|------------
-409 | Registro duplicado (correo ya registrado)
-404 | Registro no encontrado
-422 | Cuerpo de petición vacío o error de validación
+### Devices
 
-## Modelo de datos
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| GET | `/devices/` | Listar dispositivos |
+| GET | `/devices/{id}` | Obtener dispositivo |
+| POST | `/devices/` | Crear dispositivo |
+| PUT | `/devices/{id}` | Actualizar dispositivo |
+| PATCH | `/devices/{id}` | Actualizar parcial |
+| DELETE | `/devices/{id}` | Eliminar dispositivo |
 
-Campo | Tipo | Descripción
-------|------|-----------
-uid | int | Identificador autoincremental
-nombre_completo | str | Nombre completo (mín. 2 caracteres)
-correo | str | Correo electrónico único
-rol | enum | coordinador / operativo / practicante
-activo | bool | Estado de alta (default: true)
-fecha_alta | datetime | Fecha de incorporación
-notas | str | Observaciones opcionales
+### Loans
 
-## Endpoints de sistema
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| GET | `/loans/` | Listar prestamos |
+| GET | `/loans/{id}` | Obtener prestamo |
+| POST | `/loans/` | Crear prestamo |
+| PATCH | `/loans/{id}/return` | Devolver dispositivo |
+| GET | `/loans/user/{user_id}` | Prestamos de usuario |
+| GET | `/loans/device/{device_id}` | Historial de dispositivo |
 
-Ruta | Descripción
------|------------
-GET `/ping` | Healthcheck — devuelve `{"reply": "pong"}`
+## Modelos
+
+### User
+- id, name, email (unico), role, is_active, created_at
+
+### Device
+- id, name, serial_number (unico), device_type, brand, is_available, created_at
+
+### Loan
+- id, user_id (FK), device_id (FK), loan_date, return_date, status
+
+## Relaciones
+
+- User 1-N Loan
+- Device 1-N Loan
+- Loan N-1 User + Device
+
+## Tecnologias
+
+- Python 3, FastAPI, SQLAlchemy, Alembic, Pydantic v2, SQLite, Uvicorn
